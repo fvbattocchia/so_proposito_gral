@@ -1,7 +1,7 @@
 import socket
 import sys
 import time
-import _thread
+import thread
 import datetime
 
 def writeOutState(outNumber,state):
@@ -26,6 +26,7 @@ def readOutState(outNumber):
 
 
 def rcvThread(sock):
+
 	global socketOk
 	print("INICIO thread recepcion")
 	while True:
@@ -55,9 +56,11 @@ while True:
 		print('connecting to {} port {}'.format(*server_address))
 		#print >>sys.stderr, 'connecting to %s port %s' % server_address
 		sock.connect(server_address)
+
 		socketOk=True
 		# Creo thread para escuchar paquetes
 		thread.start_new_thread( rcvThread, (sock, ) )
+
 
 		out0Old=False
 		out1Old=False

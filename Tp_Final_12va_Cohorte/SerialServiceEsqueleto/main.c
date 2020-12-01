@@ -11,6 +11,32 @@
 
 int newfd;
 int status_thread;
+void bloquearSign(void)
+{
+    sigset_t set;
+    int s;
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGTERM);
+    if(pthread_sigmask(SIG_BLOCK, &set, NULL)== -1) {
+		perror("sigmask");
+		exit(1);
+	}
+}
+
+void desbloquearSign(void)
+{
+    sigset_t set;
+    int s;
+    sigemptyset(&set);
+    sigaddset(&set, SIGINT);
+    sigaddset(&set, SIGTERM);
+    if(pthread_sigmask(SIG_UNBLOCK, &set, NULL)== -1) {
+		perror("sigmask");
+		exit(1);
+	}
+
+}
 
 void recibiSignal(int sig)
 {
@@ -30,9 +56,18 @@ int main(void)
 	sa.sa_flags = 0; //SA_RESTART;
 	sigemptyset(&sa.sa_mask);
 
-	sigaction(SIGINT,&sa,NULL);
-	sigaction(SIGTERM,&sa,NULL);
+	if(sigaction(SIGINT,&sa,NULL)== -1) {
+		perror("sigaction");
+		exit(1);
+	}
 
+	if(sigaction(SIGTERM,&sa,NULL)== -1) {
+		perror("sigaction");
+		exit(1);
+	}
+
+	//enmascaro señales
+	bloquearSign();
 	//variable de control de los thread
 	status_thread = START;
 
@@ -48,6 +83,9 @@ int main(void)
 	//se crea el threar del servidor
   pthread_create (&tcpServer, NULL, server_thread,NULL);
 	//------
+	//desenmascaro señales
+	desbloquearSign();
+
 	while(status_thread){
 		ret=serial_receive(buffer,TAMANO);//buffer to send socket
     if(ret != EOF_){
