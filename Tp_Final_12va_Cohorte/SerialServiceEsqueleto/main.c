@@ -9,8 +9,10 @@
 #define SERIAL_PORT 1 //(0 -> dev/ttyusb0, 1-> portusb1)
 #define BAUDRATE 115200
 
+int conexionTcp;
 int newfd;
-int status_thread;
+volatile sig_atomic_t status_thread;
+
 void bloquearSign(void)
 {
     sigset_t set;
@@ -40,7 +42,7 @@ void desbloquearSign(void)
 
 void recibiSignal(int sig)
 {
-		status_thread=STOP;
+	status_thread=STOP;
 }
 
 int main(void)
@@ -48,7 +50,10 @@ int main(void)
 	pthread_t tcpServer;
 	int ret;
 	char buffer[TAMANO];
-	newfd=ERROR;
+	//flag para indicar la conexion activa del server tcp
+	conexionTcp=FALSE;
+	//fd socket
+  	newfd=ERROR;
 
 	struct sigaction sa;
 	//configuro handler signals
@@ -72,7 +77,6 @@ int main(void)
 	status_thread = START;
 
 	//Se abre el puerto serie
-
 	printf("Inicio Serial Service\r\n");
 	ret=serial_open(SERIAL_PORT,BAUDRATE);
 	if(ret!=0){
@@ -81,39 +85,42 @@ int main(void)
 	}
 
 	//se crea el threar del servidor
-  pthread_create (&tcpServer, NULL, server_thread,NULL);
+	ret=pthread_create (&tcpServer, NULL, server_thread,NULL);
+	if(ret!=0){
+		perror("Error al crear el thread");
+		exit(1);
+	}
+
 	//------
 	//desenmascaro señales
 	desbloquearSign();
 
 	while(status_thread){
 		ret=serial_receive(buffer,TAMANO);//buffer to send socket
-    if(ret != EOF_){
-			 buffer[ret]=0x00;
-		   printf("Recibi de la EDU-CIAA %d bytes.:%s\n",ret,buffer);
-		   //enviar x socket al cliente
-			 if(newfd>ERROR)
-			 {
-				 printf("Enviando mjs al cliente\n");
-				 if (write (newfd,buffer,TAMANO) == ERROR)
-				 {
-						 perror("Error escribiendo mensaje en socket");
-						 exit (1);
-				 }
-		   }
-			 else{
-			 	printf("No hay conexion con el cliente\r\n");
-		   }
+		if(ret != EOF_){
+			buffer[ret]=0x00;
+			printf("Recibi de la EDU-CIAA %d bytes.:%s\n",ret,buffer);
+			//enviar x socket al cliente
+			if(conexionTcp)
+			{
+				printf("Enviando mjs al cliente\n");
+				if (write (newfd,buffer,TAMANO) == ERROR)
+				{
+					perror("Error escribiendo mensaje en socket");
+					exit (1);
+				}
+			}
+			else{
+				printf("No hay conexion con el cliente\r\n");
+			}
 		}
 		sleep(1);
-	 }
-	 printf  ("Finalizando programa\n");
-	 pthread_cancel(tcpServer);
-	//------
-	//se espera a que finalice el thread del server
-  pthread_join (tcpServer, NULL);
-	if(newfd!=ERROR){
-		 close(newfd);
 	}
+	printf  ("Finalizando programa\n");
+	pthread_cancel(tcpServer);
+	//se espera a que finalice el thread del server
+  	pthread_join (tcpServer, NULL);
+	//cierra el socket
+  	close_thread();
 	return 0;
 }
